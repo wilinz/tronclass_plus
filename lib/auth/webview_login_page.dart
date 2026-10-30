@@ -3,6 +3,7 @@ import 'package:get/get.dart';
 import 'package:webview_flutter/webview_flutter.dart';
 
 import 'package:tronclass/auth/autofill_script.dart';
+import 'package:tronclass/auth/autofill_scope.dart';
 import 'package:tronclass/auth/credential_card.dart';
 import 'package:tronclass/auth/web_login_credential.dart';
 import 'package:tronclass/data/model/tron_org.dart';
@@ -11,14 +12,15 @@ import 'package:tronclass/data/user_agent.dart';
 
 /// OIDC 回调地址。这个页面本身没有内容，不需要它加载成功，
 /// 跳到这个地址就说明 code 已经在 URL 上了。
-const kTronCallbackUrl = 'https://mobile-download.tronclass.com.cn/callback.html';
+const kTronCallbackUrl =
+    'https://mobile-download.tronclass.com.cn/callback.html';
 
 class WebViewLoginArgs {
   const WebViewLoginArgs({required this.org, this.credential});
 
   final TronOrg org;
 
-  /// 用户事先填的账号密码，只用来在页面上浮一张可复制的卡片。
+  /// 用户事先填的账号密码，只在所选学校认证范围内自动填充。
   final WebLoginCredential? credential;
 }
 
@@ -40,6 +42,10 @@ class _WebViewLoginPageState extends State<WebViewLoginPage> {
 
   /// 这一页已经自动填过了，别在后续的 onPageFinished 里反复覆盖用户的修改。
   bool _autofilled = false;
+  int _autofillGeneration = 0;
+  late final AutofillScope? _autofillScope = AutofillScope.fromIdentityConfig(
+    _org.identityConfig!,
+  );
 
   TronOrg get _org => widget.args.org;
 
@@ -81,6 +87,7 @@ class _WebViewLoginPageState extends State<WebViewLoginPage> {
             if (mounted) setState(() => _progress = p);
           },
           onNavigationRequest: (request) {
+            if (request.isMainFrame) _cancelAutofill();
             if (_handleCallback(request.url)) {
               return NavigationDecision.prevent;
             }
@@ -89,7 +96,7 @@ class _WebViewLoginPageState extends State<WebViewLoginPage> {
           // 有的 IdP 是 302 到 callback 之后才触发 onPageStarted，
           // onNavigationRequest 在个别机型上也可能不回调，这里再兜一层。
           onPageStarted: (url) {
-            _autofilled = false;
+            _cancelAutofill();
             _handleCallback(url);
           },
           onPageFinished: (url) {
@@ -106,6 +113,11 @@ class _WebViewLoginPageState extends State<WebViewLoginPage> {
     setState(() => _controller = controller);
   }
 
+  void _cancelAutofill() {
+    _autofillGeneration++;
+    _autofilled = false;
+  }
+
   /// 试着把账号密码填进页面。登录页常常是脚本渲染出来的，
   /// 所以填不上就隔一会儿再试，别只试一次。
   Future<void> _autofill({bool byUser = false}) async {
@@ -114,13 +126,38 @@ class _WebViewLoginPageState extends State<WebViewLoginPage> {
     if (credential == null || controller == null) return;
     if (_autofilled && !byUser) return;
 
-    final script = buildAutofillScript(credential);
+    final scope = _autofillScope;
+    if (scope == null) {
+      if (byUser) toastFailure0('学校认证地址无效，已禁用自动填充');
+      return;
+    }
+    final generation = ++_autofillGeneration;
+    bool active() => mounted && !_finished && generation == _autofillGeneration;
+    final script = buildAutofillScript(credential, scope: scope);
     for (var attempt = 0; attempt < 6; attempt++) {
-      if (!mounted || _finished) return;
+      if (!active()) return;
       try {
+        final url = await controller.currentUrl();
+        if (!active()) return;
+        if (!scope.allows(url)) {
+          if (byUser) toastFailure0('当前页面不在该校认证范围内，已阻止填充');
+          return;
+        }
         final raw = await controller.runJavaScriptReturningResult(script);
+        if (!active()) return;
         final filled = raw.toString();
-        if (filled.contains('user') || filled.contains('pass')) {
+        if (filled.contains('blocked-origin')) {
+          if (byUser) toastFailure0('当前页面不在该校认证范围内，已阻止填充');
+          return;
+        }
+        if (const {
+          'user',
+          'pass',
+          'user,pass',
+          '"user"',
+          '"pass"',
+          '"user,pass"',
+        }.contains(filled)) {
           _autofilled = true;
           if (byUser) toastSuccess0('已填入账号密码');
           return;
@@ -131,7 +168,7 @@ class _WebViewLoginPageState extends State<WebViewLoginPage> {
       if (byUser) break;
       await Future.delayed(const Duration(milliseconds: 500));
     }
-    if (byUser) toastFailure0('这个页面没找到账号密码框，手动复制吧');
+    if (byUser && active()) toastFailure0('这个认证页面没找到账号密码框');
   }
 
   /// 跳到回调地址就收网。返回 true 表示这一跳被我们截下了。

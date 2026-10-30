@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:flutter/foundation.dart';
 import 'package:flutter/services.dart';
 import 'package:fluttertoast/fluttertoast.dart';
 import 'package:get/get.dart';
@@ -7,6 +8,7 @@ import 'data/changke_client.dart';
 import 'data/get_storage.dart';
 import 'path.dart';
 import 'routes.dart';
+import 'widget/mac_phone_frame.dart';
 
 Future<void> main() async {
   WidgetsFlutterBinding.ensureInitialized();
@@ -44,7 +46,15 @@ class TronClassPlusApp extends StatelessWidget {
           colorScheme: ColorScheme.fromSeed(seedColor: const Color(0xFF1DB6C2)),
         ),
         initialRoute: AppRoute.tronClassPage,
-        builder: FToastBuilder(),
+        builder: (context, child) {
+          final toastBuilder = FToastBuilder();
+          if (defaultTargetPlatform != TargetPlatform.macOS) {
+            return toastBuilder(context, child);
+          }
+          return MacPhoneFrame(
+            child: Builder(builder: (context) => toastBuilder(context, child)),
+          );
+        },
         getPages: AppRoute.routes,
       ),
     );

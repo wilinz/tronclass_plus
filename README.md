@@ -1,5 +1,8 @@
 # TronClass Plus
 
+> macOS fork：本仓库增加了桌面图片/剪贴板扫码、学校来源校验、原生窗口与网页交互修复。
+> 安装包见 [Releases](https://github.com/xyzxyq/tronclass_plus/releases)，构建与签名说明见 [macOS 发布说明](docs/macos-release.md)。
+
 TronClass Plus 是非官方的 Tronclass 客户端，主打签到、雷达点名、二维码签到等场景，同时提供多账号、Web
 门户和地图定位等工具，支持 Android / iOS / macOS / Windows / Web。
 

@@ -2,6 +2,8 @@ import 'package:flutter/material.dart';
 import 'package:get/get.dart';
 
 import 'package:tronclass/auth/login_controller.dart';
+import 'package:tronclass/auth/public_login.dart';
+import 'package:tronclass/data/model/tron_org.dart';
 import 'package:tronclass/auth/web_login_credential.dart';
 import 'package:tronclass/data/org_store.dart';
 import 'package:tronclass/routes.dart';
@@ -9,23 +11,37 @@ import 'package:tronclass/routes.dart';
 class LoginPage extends StatelessWidget {
   const LoginPage({super.key});
 
-  /// 其他学校：账号密码一样要填（登录时要靠它快速填充），
-  /// 填好再去选学校。
-  Future<void> _loginOtherOrg(LoginController controller) async {
-    if (!(controller.formKey.currentState?.validate() ?? false)) return;
-
-    final result = await Get.toNamed(
-      AppRoute.orgSearchPage,
-      arguments: WebLoginCredential(
-        username: controller.usernameController.text.trim(),
-        password: controller.passwordController.text,
-      ),
-    );
+  Future<void> _loginOtherOrg() async {
+    final result = await Get.toNamed(AppRoute.orgSearchPage);
     if (result == true) Get.back(result: true);
+  }
+
+  Future<void> _submit(LoginController controller, TronOrg org) async {
+    if (org.apiUrl == AppOrg.guet.apiUrl) {
+      await controller.submit();
+      return;
+    }
+    if (controller.isSubmitting.value ||
+        !(controller.formKey.currentState?.validate() ?? false))
+      return;
+    controller.isSubmitting.value = true;
+    try {
+      final ok = await PublicLogin.run(
+        org,
+        credential: WebLoginCredential(
+          username: controller.usernameController.text.trim(),
+          password: controller.passwordController.text,
+        ),
+      );
+      if (ok) Get.back(result: true);
+    } finally {
+      if (!controller.isClosed) controller.isSubmitting.value = false;
+    }
   }
 
   @override
   Widget build(BuildContext context) {
+    var org = AppOrg.guet;
     String? initialUsername;
     String? initialPassword;
     final args = Get.arguments;
@@ -33,6 +49,8 @@ class LoginPage extends StatelessWidget {
       initialUsername = args;
     } else if (args is Map) {
       final map = Map<String, dynamic>.from(args as Map);
+      final selectedOrg = map['org'];
+      if (selectedOrg is TronOrg) org = selectedOrg;
       final user = map['username'];
       final pass = map['password'];
       if (user is String) initialUsername = user;
@@ -40,6 +58,7 @@ class LoginPage extends StatelessWidget {
     }
 
     return GetBuilder<LoginController>(
+      global: false,
       init: LoginController(
         initialUsername: initialUsername,
         initialPassword: initialPassword,
@@ -89,17 +108,20 @@ class LoginPage extends StatelessWidget {
                                     ),
                                   ),
                                   const SizedBox(width: 12),
-                                  Text(
-                                    '登录 TronClass Plus',
-                                    style: Theme.of(
-                                      context,
-                                    ).textTheme.titleLarge,
+                                  Flexible(
+                                    child: Text(
+                                      org.orgName,
+                                      textAlign: TextAlign.center,
+                                      style: Theme.of(
+                                        context,
+                                      ).textTheme.titleLarge,
+                                    ),
                                   ),
                                 ],
                               ),
                               const SizedBox(height: 16),
                               Text(
-                                '填好账号密码，再选下面对应的登录方式',
+                                '请输入该校的账号和密码',
                                 style: Theme.of(context).textTheme.bodyMedium,
                                 textAlign: TextAlign.center,
                               ),
@@ -157,13 +179,13 @@ class LoginPage extends StatelessWidget {
                           () => ElevatedButton(
                             onPressed: controller.isSubmitting.value
                                 ? null
-                                : controller.submit,
+                                : () => _submit(controller, org),
                             style: ElevatedButton.styleFrom(
                               minimumSize: const Size(double.infinity, 50),
                             ),
                             child: controller.isSubmitting.value
                                 ? const Text('正在登录...')
-                                : Text('${AppOrg.guet.orgName}登录'),
+                                : const Text('登录'),
                           ),
                         ),
                         const SizedBox(height: 12),
@@ -171,17 +193,16 @@ class LoginPage extends StatelessWidget {
                           () => OutlinedButton(
                             onPressed: controller.isSubmitting.value
                                 ? null
-                                : () => _loginOtherOrg(controller),
+                                : _loginOtherOrg,
                             style: OutlinedButton.styleFrom(
                               minimumSize: const Size(double.infinity, 50),
                             ),
-                            child: const Text('其他学校登录'),
+                            child: const Text('更换学校'),
                           ),
                         ),
                         const SizedBox(height: 4),
                         Text(
-                          '其他学校要先选学校，再在学校自己的登录页面里登；'
-                          '上面填的账号密码会浮在页面上，点一下就能复制。',
+                          '账号和密码仅用于所选学校的登录。',
                           style: Theme.of(context).textTheme.bodySmall
                               ?.copyWith(
                                 color: Theme.of(context).colorScheme.outline,

@@ -5,19 +5,16 @@ import 'package:flutter/material.dart';
 import 'package:get/get.dart';
 
 import 'package:tronclass/auth/generic_login.dart';
-import 'package:tronclass/auth/public_login.dart';
 import 'package:tronclass/auth/web_login_credential.dart';
 import 'package:tronclass/data/model/tron_org.dart';
 import 'package:tronclass/data/org_store.dart';
 import 'package:tronclass/data/service/org_service.dart';
 import 'package:tronclass/data/user_agent.dart';
+import 'package:tronclass/routes.dart';
 
 /// 搜学校 → 选学校 → 打开对应的统一身份认证 WebView 登录。
 class OrgSearchPage extends StatefulWidget {
-  const OrgSearchPage({super.key, required this.credential});
-
-  /// 登录页填好的账号密码，选完学校原样带进认证页。
-  final WebLoginCredential credential;
+  const OrgSearchPage({super.key});
 
   @override
   State<OrgSearchPage> createState() => _OrgSearchPageState();
@@ -86,10 +83,13 @@ class _OrgSearchPageState extends State<OrgSearchPage> {
   }
 
   Future<void> _pick(TronOrg org) async {
-    // 有统一身份认证的开认证页登，没有的（公有云都是）直接提交账号密码
     final ok = org.supportsIdentityLogin
-        ? await GenericLogin.run(org, credential: widget.credential)
-        : await PublicLogin.run(org, credential: widget.credential);
+        ? await GenericLogin.run(org, credential: const WebLoginCredential())
+        : await Get.toNamed(
+                AppRoute.loginPage,
+                arguments: {'org': org, 'username': ''},
+              ) ==
+              true;
     if (ok && mounted) Get.back(result: true);
   }
 
@@ -132,7 +132,7 @@ class _OrgSearchPageState extends State<OrgSearchPage> {
             child: Align(
               alignment: Alignment.centerLeft,
               child: Text(
-                '学校列表来自畅课的机构检索服务，选中后会打开该校的统一身份认证页面登录。',
+                '先选择学校，再进入该校的认证页面或账号密码登录。',
                 style: Theme.of(context).textTheme.bodySmall?.copyWith(
                   color: Theme.of(context).colorScheme.outline,
                 ),
@@ -163,7 +163,9 @@ class _OrgSearchPageState extends State<OrgSearchPage> {
     }
     if (_results.isEmpty) {
       return _Hint(
-        icon: _isSearching ? Icons.hourglass_empty : Icons.sentiment_dissatisfied,
+        icon: _isSearching
+            ? Icons.hourglass_empty
+            : Icons.sentiment_dissatisfied,
         text: _isSearching ? '正在搜索...' : '没找到这所学校，换个关键词试试',
       );
     }

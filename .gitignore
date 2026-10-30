@@ -46,3 +46,7 @@ app.*.map.json
 
 # Gradle 在 android/ 下生成的报告目录
 android/build/
+
+# macOS metadata and release output
+._*
+/dist/

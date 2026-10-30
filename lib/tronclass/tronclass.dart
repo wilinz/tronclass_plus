@@ -220,9 +220,11 @@ class TronClassPage extends StatelessWidget {
                                       Text(
                                         loggedIn
                                             ? [
-                                                auth.orgName.value,
-                                                auth.loginMethodLabel.value,
-                                              ].where((e) => e.isNotEmpty).join(' · ')
+                                                    auth.orgName.value,
+                                                    auth.loginMethodLabel.value,
+                                                  ]
+                                                  .where((e) => e.isNotEmpty)
+                                                  .join(' · ')
                                             : '登录后才能签到',
                                         style: Theme.of(context)
                                             .textTheme
@@ -256,7 +258,7 @@ class TronClassPage extends StatelessWidget {
                                   FilledButton(
                                     onPressed: () async {
                                       final result = await Get.toNamed(
-                                        AppRoute.loginPage,
+                                        AppRoute.orgSearchPage,
                                       );
                                       if (result == true) auth.refreshState();
                                     },
@@ -283,7 +285,7 @@ class TronClassPage extends StatelessWidget {
 
   Future<bool> _ensureLoggedIn() async {
     if (ChangkeClient.instance.isLoggedIn) return true;
-    final result = await Get.toNamed(AppRoute.loginPage);
+    final result = await Get.toNamed(AppRoute.orgSearchPage);
     return result == true;
   }
 

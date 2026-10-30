@@ -1,6 +1,7 @@
 import 'dart:async';
 
 import 'package:flutter/material.dart';
+import 'package:flutter/foundation.dart';
 import 'package:get/get.dart';
 import 'package:get_storage/get_storage.dart';
 import 'package:permission_handler/permission_handler.dart';
@@ -57,6 +58,7 @@ class WebViewState extends State<WebView> {
   bool isInit = false;
   bool isMobileMode = false;
   bool shouldClearCache = false;
+  int _webViewAttempt = 0;
 
   final GetStorage storage = getStorage;
 
@@ -108,6 +110,8 @@ class WebViewState extends State<WebView> {
   Widget build(BuildContext context) {
     return isInit
         ? _WebView(
+            key: ValueKey(_webViewAttempt),
+            onRetry: () => setState(() => _webViewAttempt++),
             args: widget.args,
             storage: storage,
             isMobileMode: isMobileMode,
@@ -125,8 +129,11 @@ class _WebView extends StatefulWidget {
   final bool isMobileMode;
   final GetStorage storage;
   final bool shouldClearCache;
+  final VoidCallback onRetry;
 
   const _WebView({
+    super.key,
+    required this.onRetry,
     required this.args,
     required this.storage,
     required this.isMobileMode,
@@ -159,6 +166,7 @@ class _WebViewState extends State<_WebView> {
   late bool isMobileMode = widget.isMobileMode;
   WebViewController? webViewController;
   bool controllerReady = false;
+  String? loadError;
   double progress = 0;
   String url = '';
   String? title;
@@ -171,44 +179,76 @@ class _WebViewState extends State<_WebView> {
   }
 
   Future<void> _initController() async {
+    try {
+      final controller = await _createController().timeout(
+        const Duration(seconds: 20),
+      );
+      if (!mounted) return;
+      setState(() {
+        webViewController = controller;
+        controllerReady = true;
+      });
+    } catch (error) {
+      if (!mounted) return;
+      setState(() {
+        loadError = error is TimeoutException
+            ? '网页组件初始化超时，请重试'
+            : '网页组件初始化失败，请重试';
+      });
+    }
+  }
+
+  Future<WebViewController> _createController() async {
     final controller = WebViewController(
       onPermissionRequest: _handlePermissionRequest,
     );
 
-    controller
-      ..setJavaScriptMode(JavaScriptMode.unrestricted)
-      ..setBackgroundColor(Colors.transparent)
-      ..setNavigationDelegate(
-        NavigationDelegate(
-          onPageStarted: (url) {
-            setState(() {
-              this.url = url;
-            });
-          },
-          onPageFinished: (url) async {
-            final currentTitle = await controller.getTitle();
-            setState(() {
-              this.url = url;
-              title = currentTitle;
-            });
-          },
-          onProgress: (progress) {
-            setState(() {
-              this.progress = progress / 100;
-            });
-          },
-          onNavigationRequest: (request) async {
-            final uri = Uri.parse(request.url);
-            if (!_isSupportedScheme(uri.scheme)) {
-              if (await canLaunchUrl(uri)) {
-                await launchUrl(uri);
-                return NavigationDecision.prevent;
-              }
+    await controller.setJavaScriptMode(JavaScriptMode.unrestricted);
+    // WKWebView's opacity/background setters are only implemented on iOS.
+    if (defaultTargetPlatform != TargetPlatform.macOS) {
+      await controller.setBackgroundColor(Colors.transparent);
+    }
+    await controller.setNavigationDelegate(
+      NavigationDelegate(
+        onPageStarted: (url) {
+          if (!mounted) return;
+          setState(() {
+            this.url = url;
+          });
+        },
+        onPageFinished: (url) async {
+          final currentTitle = await controller.getTitle().catchError(
+            (_) => null,
+          );
+          if (!mounted) return;
+          setState(() {
+            this.url = url;
+            title = currentTitle;
+            progress = 1;
+          });
+        },
+        onProgress: (progress) {
+          if (!mounted) return;
+          setState(() {
+            this.progress = progress / 100;
+          });
+        },
+        onWebResourceError: (error) {
+          if (!mounted || error.isForMainFrame == false) return;
+          setState(() => loadError = '网页加载失败，请检查网络后重试');
+        },
+        onNavigationRequest: (request) async {
+          final uri = Uri.parse(request.url);
+          if (!_isSupportedScheme(uri.scheme)) {
+            if (await canLaunchUrl(uri)) {
+              await launchUrl(uri);
+              return NavigationDecision.prevent;
             }
-            return NavigationDecision.navigate;
-          },
-        ),
-      );
+          }
+          return NavigationDecision.navigate;
+        },
+      ),
+    );
 
     await controller.setUserAgent(
       isMobileMode ? mobileModeUserAgent : desktopModeUserAgent,
@@ -221,11 +261,7 @@ class _WebViewState extends State<_WebView> {
 
     await controller.loadRequest(Uri.parse(widget.args.url));
 
-    if (!mounted) return;
-    setState(() {
-      webViewController = controller;
-      controllerReady = true;
-    });
+    return controller;
   }
 
   bool _isSupportedScheme(String scheme) {
@@ -398,8 +434,15 @@ class _WebViewState extends State<_WebView> {
       },
       child: Scaffold(
         appBar: AppBar(
-          title: Text(title ?? '加载中'),
-          actions: GetPlatform.isAndroid || GetPlatform.isIOS
+          title: Text(
+            title ??
+                (loadError != null
+                    ? '加载失败'
+                    : progress >= 1
+                    ? '网页版'
+                    : '加载中'),
+          ),
+          actions: MediaQuery.sizeOf(context).width < 600
               ? buildMobileActions(context)
               : buildDesktopActions(context),
         ),
@@ -408,11 +451,29 @@ class _WebViewState extends State<_WebView> {
             Expanded(
               child: Stack(
                 children: [
-                  if (controllerReady && webViewController != null)
+                  if (loadError != null)
+                    Center(
+                      child: Padding(
+                        padding: const EdgeInsets.all(24),
+                        child: Column(
+                          mainAxisSize: MainAxisSize.min,
+                          children: [
+                            Text(loadError!, textAlign: TextAlign.center),
+                            const SizedBox(height: 16),
+                            FilledButton(
+                              onPressed: widget.onRetry,
+                              child: const Text('重试'),
+                            ),
+                          ],
+                        ),
+                      ),
+                    )
+                  else if (controllerReady && webViewController != null)
                     WebViewWidget(controller: webViewController!)
                   else
                     const Center(child: CircularProgressIndicator()),
-                  if (progress < 1.0) LinearProgressIndicator(value: progress),
+                  if (loadError == null && progress < 1.0)
+                    LinearProgressIndicator(value: progress),
                 ],
               ),
             ),

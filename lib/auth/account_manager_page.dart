@@ -90,7 +90,10 @@ class AccountManagerPage extends StatelessWidget {
                           ],
                         ),
                         const SizedBox(height: 8),
-                        _InfoLine(icon: Icons.school_outlined, text: account.org.orgName),
+                        _InfoLine(
+                          icon: Icons.school_outlined,
+                          text: account.org.orgName,
+                        ),
                         const SizedBox(height: 4),
                         _InfoLine(
                           icon: account.loginMethod == LoginMethod.password
@@ -109,12 +112,15 @@ class AccountManagerPage extends StatelessWidget {
                         const SizedBox(height: 4),
                         _InfoLine(
                           icon: Icons.schedule_outlined,
-                          text: '最近更新 '
+                          text:
+                              '最近更新 '
                               '${account.updatedAt.toLocal().toString().split('.').first}',
                         ),
                         const Divider(height: 20),
-                        Row(
-                          mainAxisAlignment: MainAxisAlignment.end,
+                        Wrap(
+                          alignment: WrapAlignment.end,
+                          spacing: 4,
+                          runSpacing: 4,
                           children: [
                             if (isCurrent)
                               TextButton.icon(
@@ -124,7 +130,6 @@ class AccountManagerPage extends StatelessWidget {
                                 icon: const Icon(Icons.logout, size: 18),
                                 label: const Text('退出'),
                               ),
-                            if (isCurrent) const SizedBox(width: 4),
                             TextButton.icon(
                               onPressed: isProcessing
                                   ? null
@@ -147,18 +152,16 @@ class AccountManagerPage extends StatelessWidget {
                                 ).colorScheme.error,
                               ),
                             ),
-                            const SizedBox(width: 4),
                             // 登录态还在就直接切，别让人白登一次
                             if (hasSession && !isCurrent)
                               TextButton.icon(
                                 onPressed: isProcessing
                                     ? null
-                                    : () => controller.loginWithAccount(account),
+                                    : () =>
+                                          controller.loginWithAccount(account),
                                 icon: const Icon(Icons.refresh, size: 18),
                                 label: const Text('重新登录'),
                               ),
-                            if (hasSession && !isCurrent)
-                              const SizedBox(width: 4),
                             FilledButton.tonalIcon(
                               onPressed: isProcessing
                                   ? null
@@ -195,7 +198,7 @@ class AccountManagerPage extends StatelessWidget {
           ),
           floatingActionButton: FloatingActionButton.extended(
             onPressed: () async {
-              final result = await Get.toNamed(AppRoute.loginPage);
+              final result = await Get.toNamed(AppRoute.orgSearchPage);
               if (result == true) {
                 controller.loadAccounts();
                 Get.back(result: true);

@@ -3,7 +3,6 @@ import 'package:get/get.dart';
 import 'package:tronclass/auth/account_manager_page.dart';
 import 'package:tronclass/auth/login_page.dart';
 import 'package:tronclass/auth/org_search_page.dart';
-import 'package:tronclass/auth/web_login_credential.dart';
 import 'package:tronclass/auth/webview_login_page.dart';
 import 'package:tronclass/tronclass/number_rollcalls/number_rollcalls_page.dart';
 import 'package:tronclass/tronclass/qr_rollcalls/qr_rollcalls_page.dart';
@@ -53,11 +52,7 @@ class AppRoute {
     ),
     GetPage(name: loginPage, page: () => const LoginPage()),
     GetPage(name: accountManagerPage, page: () => const AccountManagerPage()),
-    GetPage(
-      name: orgSearchPage,
-      page: () =>
-          OrgSearchPage(credential: _requireArgs<WebLoginCredential>()),
-    ),
+    GetPage(name: orgSearchPage, page: () => const OrgSearchPage()),
     GetPage(
       name: webviewLoginPage,
       page: () => WebViewLoginPage(args: _requireArgs<WebViewLoginArgs>()),

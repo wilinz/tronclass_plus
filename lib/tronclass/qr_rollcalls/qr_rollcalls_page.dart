@@ -7,6 +7,7 @@ import 'package:vibration/vibration.dart';
 import '../../../../data/service/tronclass.dart';
 import '../../../../data/util/changke.dart';
 import '../../widget/wx_scan_view.dart';
+import '../../widget/image_qr_scan_view.dart';
 import '../common.dart';
 import 'sign_result.dart';
 
@@ -25,7 +26,7 @@ class _QrRollcallsPageState extends State<QrRollcallsPage> {
   @override
   void initState() {
     super.initState();
-    initAsync();
+    if (GetPlatform.isMobile) initAsync();
   }
 
   @override
@@ -46,6 +47,12 @@ class _QrRollcallsPageState extends State<QrRollcallsPage> {
 
   @override
   Widget build(BuildContext context) {
+    if (GetPlatform.isDesktop) {
+      return Scaffold(
+        appBar: AppBar(title: const Text('图片扫码签到')),
+        body: ImageQrScanView(onResult: _handleScanResult),
+      );
+    }
     return Scaffold(
       extendBodyBehindAppBar: true,
       appBar: AppBar(
@@ -76,7 +83,7 @@ class _QrRollcallsPageState extends State<QrRollcallsPage> {
       ),
       body: WxScanView(
         controller: _scanController,
-        onResult: _handleScanResult,
+        onResult: (result) => _handleScanResult(result.text),
         onError: _handleScanError,
       ),
     );
@@ -96,15 +103,17 @@ class _QrRollcallsPageState extends State<QrRollcallsPage> {
   }
 
   // 处理扫描结果
-  void _handleScanResult(ScanResult result) {
-    if (hasCustomVibrationsSupport) {
-      Vibration.vibrate(duration: 100);
-    } else {
-      Vibration.vibrate();
+  void _handleScanResult(String text) {
+    if (GetPlatform.isMobile) {
+      if (hasCustomVibrationsSupport) {
+        Vibration.vibrate(duration: 100);
+      } else {
+        Vibration.vibrate();
+      }
     }
 
     try {
-      final codeData = parseChangkeScanUrl(result.text);
+      final codeData = parseChangkeScanUrl(text);
 
       if (codeData is! Map) {
         _failAndRescan("二维码格式错误");

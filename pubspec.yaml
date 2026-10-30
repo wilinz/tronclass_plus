@@ -16,7 +16,14 @@ publish_to: 'none' # Remove this line if you wish to publish to pub.dev
 # https://developer.apple.com/library/archive/documentation/General/Reference/InfoPlistKeyReference/Articles/CoreFoundationKeys.html
 # In Windows, build-name is used as the major, minor, and patch parts
 # of the product and file versions while build-number is used as the build suffix.
-version: 1.6.0+8
+version: 1.7.0+9
+
+# macOS 27 rejects misaligned dylibs produced by Rust 1.95's symbol stripping.
+hooks:
+  user_defines:
+    wxscan:
+      cargo_profile:
+        strip: none
 
 environment:
   # wxscan 要 Dart 3.10+，Android 上的预览旋转要 Flutter 3.44+。
@@ -38,7 +45,9 @@ dependencies:
   cupertino_icons: ^1.0.8
   get: ^4.6.6
   flutter_svg: ^2.0.14
-  wxscan_live: ^0.1.5
+  wxscan_live: ^0.1.7
+  wxscan: ^0.1.7
+  file_selector: ^1.1.0
   permission_handler: ^12.0.1
   vibration: ^3.1.3
   uuid: ^4.5.1

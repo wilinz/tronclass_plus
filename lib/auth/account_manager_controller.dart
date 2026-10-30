@@ -65,7 +65,10 @@ class AccountManagerController extends GetxController {
       }
 
       final name = profile['name'];
-      await getStorage.write(GetStorageKeys.lastLoginUsername, account.username);
+      await getStorage.write(
+        GetStorageKeys.lastLoginUsername,
+        account.username,
+      );
       refreshCurrentUser();
       if (Get.isRegistered<AuthController>()) {
         Get.find<AuthController>().refreshState();
@@ -121,6 +124,7 @@ class AccountManagerController extends GetxController {
     }
 
     final args = {
+      'org': account.org,
       'username': account.username,
       if (password != null && password.isNotEmpty) 'password': password,
     };

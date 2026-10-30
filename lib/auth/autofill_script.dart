@@ -1,5 +1,6 @@
 import 'dart:convert';
 
+import 'package:tronclass/auth/autofill_scope.dart';
 import 'package:tronclass/auth/web_login_credential.dart';
 
 /// 生成往认证页里填账号密码的脚本。
@@ -9,12 +10,28 @@ import 'package:tronclass/auth/web_login_credential.dart';
 /// 里的关键词打分挑一个。验证码、搜索之类的框会被排除。
 ///
 /// 只填值，不提交——短信、扫码、企业微信那些登录方式还得用户自己点。
-String buildAutofillScript(WebLoginCredential credential) {
+String buildAutofillScript(
+  WebLoginCredential credential, {
+  required AutofillScope scope,
+}) {
   final user = jsonEncode(credential.username);
   final pass = jsonEncode(credential.password);
+  final origin = jsonEncode(scope.origin);
+  final pathPrefix = jsonEncode(scope.pathPrefix);
   return '''
 (function () {
   try {
+    // 原生检查后仍可能导航，必须在实际执行的文档中再次校验。
+    if (this.top !== this || this.location.protocol !== 'https:' ||
+        this.location.origin !== $origin) {
+      return 'blocked-origin';
+    }
+    // 不调用页面可覆写的 String 方法来决定是否释放凭据。
+    var path = this.location.pathname, prefix = $pathPrefix;
+    if (path.length < prefix.length) return 'blocked-origin';
+    for (var p = 0; p < prefix.length; p++) {
+      if (path[p] !== prefix[p]) return 'blocked-origin';
+    }
     var USER = $user, PASS = $pass;
 
     function visible(el) {
